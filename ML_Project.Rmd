@@ -1,0 +1,575 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+Loading the dataset after downloading from Kaggle.
+Data Source: https://www.kaggle.com/c/prudential-life-insurance-assessment#description
+
+```{r}
+library(readr)
+train <- read.csv("C:/Users/Sagar Ghiya/Desktop/train.csv")
+
+```
+
+Checking the structure of data
+
+```{r}
+str(train)
+```
+
+Calculating the total number of missing values in the dataset
+
+```{r}
+sum(is.na(train))
+```
+
+Displaying each column with the number of missing values it has
+
+```{r}
+sapply(train, function(x) sum(is.na(x)))
+```
+
+Removing columns that have large number of missing values as this would hamper our analysis. In all, 13 columns have missing values. 1 column only has 19 missing values, whereas other 12 have atleast 6779 missing values. So removing these 12 columns from the data frame.
+
+
+```{r}
+train_new1 <- train[,-c(16,18,30,35,36,37,38,39,48,53,62,70)]
+```
+
+Now 1 column remains that has 19 missing values. Checking the structure of that column so that a proper imputation strategy can be decided. 
+
+```{r}
+str(train_new1$Employment_Info_1)
+```
+
+Since the variable is continuous missing values can be imputed with the mean of the column. Using Machine Learning technique for data imputation is not a good idea as the dataset has more than 100 features.
+
+```{r}
+train_new1$Employment_Info_1[is.na(train_new1$Employment_Info_1)] = mean(train_new1$Employment_Info_1, na.rm=TRUE)
+```
+
+Checking one final time that all the missing values have been removed.
+
+```{r}
+sum(is.na(train_new1))
+```
+
+First column is the "ID" column and will add no value to analysis. So removing it.
+
+```{r}
+train_new2 <- train_new1[,-1]
+```
+
+Again checking the structure of data to figure out columns that will have to be dummy coded. 
+
+```{r}
+str(train_new2)
+```
+
+Converting the columns that need to be dummy coded into type "factor" because dummy.data.frame function only dummy codes columns that are "factor" type. 
+
+```{r}
+train_new2[,c(1,2,3,5,6,7)] <- lapply(train_new2[,c(1,2,3,5,6,7)],factor)
+train_new2[,13:66] <- lapply(train_new2[,13:66],factor)
+```
+
+```{r}
+str(train_new2)
+```
+
+
+Removing columns that have too many factor levels. If I don't remove these, it goes to around 800+ columns only adding to computation.
+
+```{r}
+train_new3 <- train_new2[,-c(2,3,13,18,31)]
+```
+
+Dummy coding the dataframe. After dummy coding, there are around 206 variables or columns in the dataframe.
+
+
+
+```{r}
+library(dummies)
+
+train_new4 <- dummy.data.frame(train_new3)
+```
+
+Next step is outlier detection. Checking continuous value columns for values that are 3 standard deviations away from the mean. However the data is already normalized to decrease the effect of outliers. There is nothing more that can be done at this stage for the outliers. 
+
+Also the fact that target variable is ordinal. So when risk category is maximum (8), the values ideally will be more. This is because many columns are based on fact that how many medical words does application contain and so on. With more such words, application becomes more risky and falls in category 8.
+
+
+```{r}
+sum(abs((train_new4[,3] - mean(train_new4[,3]))/sd(train_new4[,3]))>3)
+```
+
+
+```{r}
+sum(abs((train_new4[,11] - mean(train_new4[,11]))/sd(train_new4[,11]))>3)
+```
+
+```{r}
+sum(abs((train_new4[,12] - mean(train_new4[,12]))/sd(train_new4[,12]))>3)
+```
+
+
+```{r}
+sum(abs((train_new4[,13] - mean(train_new4[,13]))/sd(train_new4[,13]))>3)
+```
+
+```{r}
+sum(abs((train_new4[,14] - mean(train_new4[,14]))/sd(train_new4[,14]))>3)
+```
+
+
+```{r}
+sum(abs((train_new4[,15] - mean(train_new4[,15]))/sd(train_new4[,15]))>3)
+```
+
+Next moving to machine learning models.
+Splitting the data into test and train in 70:30 ratio.
+
+```{r}
+require(caTools)
+set.seed(123)
+sample <- sample.split(train_new4, SplitRatio = .70)
+trn <- subset(train_new4, sample == TRUE)
+tst  <- subset(train_new4, sample == FALSE)
+```
+
+Checking if the response variable or target variable is more or less evenly split. This is to avoid situations when there are lots of cases with particular category in test dataset and they don't occur much in train dataset and hence not accurately modeled. 
+
+But the split seems good.
+
+```{r}
+table(trn$Response)
+```
+
+```{r}
+table(tst$Response)
+```
+
+Source for PCA: https://www.analyticsvidhya.com/blog/2016/03/practical-guide-principal-component-analysis-python/
+
+For fitting machine learning models, PCA needs to be applied to reduce the 200+ columns.
+
+Extracting the columns without target variable.
+
+```{r}
+prin_comp <- prcomp(trn[,1:204])
+```
+
+Checking the attributes of PCA.
+
+```{r}
+names(prin_comp)
+```
+
+Let's check the center's of the columns.
+
+```{r}
+prin_comp$center
+```
+
+Rotation gives us the loadings of the PCA
+
+```{r}
+prin_comp$rotation
+```
+
+Ensuring the dimensions after PCA match with our dataframe.
+
+```{r}
+dim(prin_comp$x)
+```
+
+Creating biplot to check for feature importance.
+
+```{r}
+biplot(prin_comp, scale = 0)
+```
+
+Taking standard deviation values in a variable
+
+```{r}
+std_dev <- prin_comp$sdev
+```
+
+Calculating variance.
+
+```{r}
+pr_var <- std_dev^2
+```
+
+Let's see the the proportion of variance each component in PCA covers.
+
+```{r}
+prop_varex <- pr_var/sum(pr_var)
+prop_varex
+```
+
+Making some exploratory plots for analysis.
+
+Scree plot to figure out number of components that should be kept to cover most of the information in the dataset.
+It can be observed that first 50 components cover around 98% variance or information of the data.
+So keeping first 50 components for model building.
+
+```{r}
+plot(prop_varex, xlab = "Principal Component",
+             ylab = "Proportion of Variance Explained",
+             type = "b")
+```
+
+Similar things can be observed from cumulative plot.
+
+```{r}
+plot(cumsum(prop_varex), xlab = "Principal Component",
+              ylab = "Cumulative Proportion of Variance Explained",
+              type = "b")
+```
+
+Making data frame from principal components.
+
+```{r}
+trn.data <- data.frame(prin_comp$x)
+```
+
+Taking the first 50 componets and adding the target variable column.
+
+```{r}
+trn.data <- trn.data[,1:50]
+trn.data_final <- data.frame(trn.data, Response = trn$Response)
+```
+
+Making predictions on test data to get principal components for test data.
+
+
+```{r}
+tst.data <- predict(prin_comp, newdata = tst[,1:204])
+tst.data <- tst.data[,1:50]
+tst.data_final <- data.frame(tst.data, Response = tst$Response)
+```
+
+
+Ensuring the target variable is of type "factor"
+
+```{r}
+trn.data_final$Response <- factor(trn.data_final$Response)
+tst.data_final$Response <- factor(tst.data_final$Response)
+```
+
+Now starting to build machine learning models.
+First, let's check the accuracy of base model. This means that how much accuracy can be obtained without doing any machine learning. 
+
+Since category 8 occurs most frequently, we can consider or predict all cases as category 8. This gives accuracy as 32.82%.
+Thus aim for the project should be to build models that improve accuracy above 32%.
+
+```{r}
+table(train$Response)
+```
+
+Accuracy for base model = (19489/59381) * 100 = 32.82%
+
+
+#NaiveBayes
+
+First model I am fitting is Naive Bayes. This is the only model that I am fitting on original dataset(having 206 columns) as columns obtained from PCA are continuous and Naive Bayes won't be a good model. 
+
+I decided to fit this model as majority of variables in original data frame are categorical and dummy coded.
+
+```{r}
+library(e1071)
+trn$Response <- factor(trn$Response)
+tst$Response <- factor(tst$Response)
+model_nb <- naiveBayes(Response~. , data = trn)
+
+```
+
+Making predictions on train data.
+
+```{r}
+pred_trn <- predict(model_nb, trn[,1:204])
+```
+
+Forming confusion matrix for predictions
+
+```{r}
+b <- table(pred_trn,trn$Response)
+b
+```
+
+Evaluating accuracy
+
+
+```{r}
+(sum(diag(b))/sum(b)) *100
+```
+
+It is observed that accuracy is even less than base model accuracy. One possible reason that Naive Bayes doesn't work well is that columns are dependent on each other and the target variable is also ordinal.
+
+Since Naive Bayes assumes that columns or features should be independent of each other, it doesn't work well.
+
+Predicting on test dataset
+```{r}
+pred_nb_tst <- predict(model_nb, tst[,1:204])
+```
+
+Making confusion matrix
+
+```{r}
+a <- table(pred_nb_tst,tst$Response)
+a
+
+```
+
+Checking for accuracy
+
+```{r}
+(sum(diag(a))/sum(a)) *100
+```
+
+
+#Support Vector Machine with Gaussian Kernel
+
+#Some generic notes for future models
+
+#For all the models, I wanted to tune the parameters using caret package and k fold cross validation. However the simple model is taking too long to train. So making k folds and tuning would take couple of hours for a single model which is not feasible. 
+
+# However I have manually tried different tuning values and selected one's that give best accuracy. Just that k fold wasn't possible. I am also demonstrating a small code below that shows that I can tune parameters using kfold.
+
+library(caret)
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+svm_radial <- train(Response~. , data = trn.data_final, method = "svmRadial", trControl = trctrl, preProcess  = c("center", "scale"), tuneLength = 10)
+
+
+Training with SVM
+
+```{r}
+library(kernlab)
+model_svm_rbf <- ksvm(Response~. , data = trn.data_final, kernel = 'rbf')
+```
+
+Making predictions on train data 
+
+```{r}
+svm_pred_trn <- predict(model_svm_rbf, trn.data_final)
+```
+
+Building confusion matrix
+
+```{r}
+sv_trn <- table(svm_pred_trn,trn.data_final$Response)
+sv_trn
+```
+
+Evaluating accuracy on train data
+
+```{r}
+(sum(diag(sv_trn))/sum(sv_trn)) *100
+```
+
+Predictions on test dataset
+
+```{r}
+svm_pred_tst <- predict(model_svm_rbf, tst.data_final[,1:50])
+```
+
+Making Confusion matrix
+
+```{r}
+sv_tst <- table(svm_pred_tst,tst.data_final$Response)
+sv_tst
+```
+
+Evaluating accuracy
+
+```{r}
+(sum(diag(sv_tst))/sum(sv_tst)) *100
+```
+
+For SVM: Train accuracy = 53% and test accuracy = 45%. 
+SVM gives decent results given the complexity of the dataset.
+
+
+#Multinomial Regression
+
+Multinomial regression is similar to logistic regression when there are more than 2 classes. It adopts a one-versus all approach in which it assumes one class as 1 and all the remaining classes as 0 and repeats this for all the classes. 
+
+It is linear classifier and makes 8 different hyperplanes in this case for classification.
+
+I have tuned the max iterations parameter to a very large value so that it allows enough iterations for the gradient descent optimization to converge and reach global minima and give optimal weight values. 
+
+```{r}
+library(nnet)
+model_logistic <- multinom(Response~. , data = trn.data_final, maxit = 100000
+                           )
+```
+
+From above it can be observed that at each iteration the value of cost function decreases till it reaches minimum.
+
+Making predictions and thus confusion matrix on train data.
+
+```{r}
+pred_logistic <- predict(model_logistic,trn.data_final[,1:50])
+mt <- table(pred_logistic, trn.data_final$Response)
+mt
+```
+
+Evaluating train accuracy
+
+```{r}
+(sum(diag(mt))/sum(mt)) *100
+```
+
+Predictions and confusion matrix on test dataset
+
+```{r}
+pred_logistic_tst <- predict(model_logistic, tst.data_final[,1:50])
+mt1 <- table(pred_logistic_tst, tst.data_final$Response)
+mt1
+```
+
+Evaluating test accuracy
+
+```{r}
+(sum(diag(mt1))/sum(mt1)) *100
+```
+
+For multinomial regression: Train accuracy: 44% ; Test Accuracy = 44%
+Decent results but not as good as SVM.
+
+
+#Neural Networks with 10 neurons in hidden layer
+
+Small snippet of code showing I can tune parameters with k fold CV and holdout method. However not feasible due to computation. But I tried many different parameters within computation capacity and used the best one with max accuracy.
+
+nnetGrid <- expand.grid(.size = c(10:20,10:20), .decay = c(0.01,0.001,0.0001))
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+model_neural <- train(Response~. , data = trn.data_final, method = "nnet", tuneGrid = nnetGrid, trControl = ctrl, preProc = c("center", "scale"), maxit = 10000)
+
+
+Training neural network. Here there are 10 neurons in one and only hidden layer. Decay rate is kept to be 0.001, this refers to the learning rate or the rate at which algorithm comes down the gradient to reach minima. Tuned max iterations to a large value so that there are enough iterations for convergence. 
+
+```{r}
+library(nnet)
+model_neural <- nnet(Response~. ,data = trn.data_final, size = c(10), decay = 0.001, maxit = 10000)
+```
+
+Making predictions from the neural network. Predictions come as probabilities since the activation function is sigmoid.
+Figure out class with maximum accuracy using for loop.
+
+```{r}
+pred_nn <- predict(model_neural, trn.data_final[,1:50])
+df_nn <- data.frame(pred_nn)
+df_nn$new <- 0
+for(i in 1:nrow(df_nn)) {
+  df_nn[i,9] <- which.max(df_nn[i,1:8])
+}
+
+```
+
+Making confusion matrix for train data
+
+```{r}
+nn <- table(df_nn[,9], trn.data_final$Response)
+nn
+```
+
+Evaluating train data accuracy
+
+```{r}
+
+(sum(diag(nn))/sum(nn)) *100
+```
+
+Making predictions on test data
+
+```{r}
+pred_nn_tst <- predict(model_neural, tst.data_final[,1:50])
+df_nn_tst <- data.frame(pred_nn_tst)
+df_nn_tst$new <- 0
+for(i in 1:nrow(df_nn_tst)) {
+  df_nn_tst[i,9] <- which.max(df_nn_tst[i,1:8])
+}
+```
+
+Building confusion matrix on test data
+
+```{r}
+nn_tst <- table(df_nn_tst[,9], tst.data_final$Response)
+nn_tst
+```
+
+Evaluating accuracy on test data.
+
+```{r}
+(sum(diag(nn_tst))/sum(nn_tst)) *100
+```
+
+
+For Neural Network: Train Accuracy = 49% ; Test Accuracy = 47%
+Neural Network results outperform both SVM and Multinomial Regression 
+
+# Ensemble model using voting
+
+Trying to improve accuracy using voting. In this I have created data frame with 3 columns having predictions for all the 3 models implemented(excluding NaiveBayes).
+
+Then created a new column for majority voting. If any 2 columns are same or predict same classes, the majority vote column takes that value. In rare case, if all the three models are predicting 3 different class for a case, then the majority vote column takes value from neural net prediction as neural network is giving best results.
+
+Making data frame from 3 different predictions
+
+```{r}
+vot_df <- data.frame(svm_pred_tst, pred_logistic_tst, df_nn_tst[,9])
+```
+
+Running for loop for each case. Majority vote in new column takes value which is there in atleast 2 columns. If all 3 columns have different classes, neural network class is predicted.
+
+
+```{r}
+vot_df$new <- 0
+for(i in 1:nrow(vot_df)) {
+  if(vot_df[i,1]==vot_df[i,2])
+    vot_df[i,4] = vot_df[i,1]
+  else if(vot_df[i,1]==vot_df[i,3])
+    vot_df[i,4] = vot_df[i,1]
+  else if(vot_df[i,2]==vot_df[i,3])
+    vot_df[i,4] = vot_df[i,2]
+  else vot_df[i,4] = vot_df[i,3]
+  
+}
+```
+
+
+Building confusion matrix on ensemble model
+
+```{r}
+ensemble <- table(vot_df$new, tst.data_final$Response)
+ensemble
+```
+
+Evaluating ensemble model
+
+```{r}
+
+(sum(diag(ensemble))/sum(ensemble)) *100
+```
+
+Test accuracy for ensemble = 45% which is better than multinomial regression and SVM. However this approach doesn't give more accuracy than neural networks.
+
+Having said that, neural networks have way more capability to give more better results when we add more hidden layers and more neurons in each layer. Unfortunately, I couldn't do that due to large computation that it will require. 
+
+
+Thus I conclude that Neural Networks is the way to go for the prudential dataset on Kaggle.  
+
+I observed that top performers in Kaggle for this dataset have been able to get accuracy close to 60%. I have been abe to reach 48% with neural network. Thus my goal in summer is to invest more time in this dataset to see what I can do or learn more that would help me reach that mark. 
+
+
+
+
+
+
+
+

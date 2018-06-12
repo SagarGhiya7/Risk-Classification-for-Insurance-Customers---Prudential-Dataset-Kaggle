@@ -1,6 +1,6 @@
 # Risk-Classification-for-Insurance-Customers---Prudential-Dataset-Kaggle
 
-This project is a part of a kaggle competition put up by Prudential Insurance company. IN USA the insurance process is considered as time consuming as companies usually take about 30 days to classify risk for a customer and come up with quotation. As a result most of the people get turned off. So the idea behind this is to build a machine learning model that can automate the process of classifying risk into 8 different ordinal categories. 
+This project is a part of a kaggle competition put up by Prudential Insurance company. In USA the insurance process is considered as time consuming as companies usually take about 30 days to classify risk for a customer and come up with quotation. As a result most of the people get turned off. So the idea behind this is to build a machine learning model that can automate the process of classifying risk into 8 different ordinal categories. 
 
 
 The dataset consists of 128 features comprising of continuous, discrete and ordinal variables. The target variable is an ordinal variable with 8 different risk categories, 1 -> less risky ; 8 -> most risky. Initially I had to perform some data cleaning and pre-processing such as removing columns with large number of missing values, data imputation, dummy encoding variables and outlier detection. 
